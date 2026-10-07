@@ -300,3 +300,49 @@ resource "flare_ingest_key" "plain" {
 		},
 	})
 }
+
+func TestAccDashboard(t *testing.T) {
+	cfg := func(name, tags string) string {
+		return `
+resource "flare_dashboard" "d" {
+  name        = "` + name + `"
+  description = "managed by terraform"
+  tags        = ` + tags + `
+  layout_json = jsonencode({
+    panels = [{
+      id        = "p1"
+      panelType = "text"
+      title     = "Notes"
+      layout    = { x = 0, y = 0, w = 6, h = 4 }
+      query     = {}
+    }]
+    variables = []
+  })
+}
+
+resource "flare_dashboard" "bare" {
+  name        = "acc-dash-bare"
+  layout_json = <<-EOT
+    { "panels": [] }
+  EOT
+}`
+	}
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { accPreCheck(t) },
+		ProtoV6ProviderFactories: accFactories,
+		Steps: []resource.TestStep{
+			{Config: cfg("acc-dash", `["prod", "core"]`), Check: resource.ComposeAggregateTestCheckFunc(
+				resource.TestCheckResourceAttr("flare_dashboard.d", "tags.#", "2"),
+				resource.TestCheckResourceAttrSet("flare_dashboard.d", "id"),
+				resource.TestCheckNoResourceAttr("flare_dashboard.bare", "tags.#"),
+			)},
+			{Config: cfg("acc-dash", `["prod", "core"]`), PlanOnly: true},
+			{Config: cfg("acc-dash-renamed", `["prod"]`), Check: resource.ComposeAggregateTestCheckFunc(
+				resource.TestCheckResourceAttr("flare_dashboard.d", "name", "acc-dash-renamed"),
+				resource.TestCheckResourceAttr("flare_dashboard.d", "tags.#", "1"),
+			)},
+			{ResourceName: "flare_dashboard.d", ImportState: true, ImportStateId: "acc-dash-renamed", ImportStateVerify: true,
+				ImportStateVerifyIdentifierAttribute: "id", ImportStateVerifyIgnore: []string{"layout_json"}}, // text differs from the API's compact form
+		},
+	})
+}
