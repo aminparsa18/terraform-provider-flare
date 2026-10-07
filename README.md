@@ -30,3 +30,16 @@ go build ./... && go vet ./... && go test ./...
 ```
 
 Tests use `httptest` fakes and need no Flare server. The Flare API changes live in the Flare repo; this provider needs a build with unique names and service-account get/delete (ADR-0146 phase 1).
+
+## Acceptance tests
+
+They run against a real Flare and a `terraform`/`tofu` binary, and are skipped unless `TF_ACC=1`:
+
+```bash
+TF_ACC=1 FLARE_ENDPOINT=http://localhost:8080 FLARE_TOKEN=flr_pat_... \
+  TF_ACC_TERRAFORM_PATH=$(which tofu) TF_ACC_PROVIDER_NAMESPACE=aminparsa18 \
+  TF_ACC_PROVIDER_HOST=registry.opentofu.org \
+  go test ./internal/provider -run TestAcc -v
+```
+
+Use a throwaway stack (`docker compose -p tfe2e up -d clickhouse redis ingest api` from the Flare repo, then bootstrap an admin and mint a service-account token); the tests create and destroy uniquely named objects.
