@@ -64,7 +64,9 @@ func (r *notificationChannelResource) Schema(_ context.Context, _ resource.Schem
 			Description: desc + " Write-only: Flare never returns it, so changes made outside Terraform to this value are not detected.",
 		}
 	}
-	plain := func(desc string) schema.StringAttribute { return schema.StringAttribute{Optional: true, Description: desc} }
+	plain := func(desc string) schema.StringAttribute {
+		return schema.StringAttribute{Optional: true, Description: desc}
+	}
 
 	resp.Schema = schema.Schema{
 		Description: "A saved notification destination that alert rules reference by name. Which destination fields apply depends on `type`; Flare validates the combination.",

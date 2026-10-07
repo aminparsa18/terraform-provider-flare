@@ -1,6 +1,8 @@
 package provider
 
 import (
+	"strings"
+
 	"github.com/aminparsa18/terraform-provider-flare/internal/client"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -42,3 +44,42 @@ func readString(api *string, prior types.String) types.String {
 	}
 	return types.StringValue(*api)
 }
+
+func boolPtr(v types.Bool) *bool {
+	if v.IsNull() || v.IsUnknown() {
+		return nil
+	}
+	b := v.ValueBool()
+	return &b
+}
+
+func intPtr(v types.Int64) *int {
+	if v.IsNull() || v.IsUnknown() {
+		return nil
+	}
+	i := int(v.ValueInt64())
+	return &i
+}
+
+func deref(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}
+
+func derefInt(i *int, def int) int {
+	if i == nil {
+		return def
+	}
+	return *i
+}
+
+func orDefault(s, def string) string {
+	if s == "" {
+		return def
+	}
+	return s
+}
+
+func lower(s string) string { return strings.ToLower(strings.TrimSpace(s)) }

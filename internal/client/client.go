@@ -123,4 +123,6 @@ func (c *Client) Version(ctx context.Context) (VersionInfo, error) {
 	return v, err
 }
 
-func equalFold(a, b string) bool { return strings.EqualFold(strings.TrimSpace(a), strings.TrimSpace(b)) }
+func equalFold(a, b string) bool {
+	return strings.EqualFold(strings.TrimSpace(a), strings.TrimSpace(b))
+}
