@@ -346,3 +346,37 @@ resource "flare_dashboard" "bare" {
 		},
 	})
 }
+
+func TestAccMetricAttributeRule(t *testing.T) {
+	cfg := func(name string, attrs string) string {
+		return `
+resource "flare_metric_attribute_rule" "m" {
+  name        = "` + name + `"
+  metric_name = "acc.http.client.*"
+  mode        = "Drop"
+  attributes  = [` + attrs + `]
+}
+
+resource "flare_metric_attribute_rule" "keep" {
+  name        = "acc-metric-keep"
+  enabled     = false
+  metric_name = "acc.queue.depth"
+  mode        = "KeepOnly"
+  attributes  = ["queue"]
+}`
+	}
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { accPreCheck(t) },
+		ProtoV6ProviderFactories: accFactories,
+		Steps: []resource.TestStep{
+			{Config: cfg("acc-metric-drop", `"http.url", "user.id"`), Check: resource.ComposeAggregateTestCheckFunc(
+				resource.TestCheckResourceAttr("flare_metric_attribute_rule.m", "enabled", "true"),
+				resource.TestCheckResourceAttr("flare_metric_attribute_rule.m", "attributes.#", "2"),
+				resource.TestCheckResourceAttr("flare_metric_attribute_rule.keep", "enabled", "false"),
+			)},
+			{Config: cfg("acc-metric-drop", `"user.id", "http.url"`), PlanOnly: true}, // set order is irrelevant
+			{Config: cfg("acc-metric-renamed", `"http.url"`), Check: resource.TestCheckResourceAttr("flare_metric_attribute_rule.m", "attributes.#", "1")},
+			{ResourceName: "flare_metric_attribute_rule.m", ImportState: true, ImportStateId: "acc-metric-renamed", ImportStateVerify: true, ImportStateVerifyIdentifierAttribute: "id"},
+		},
+	})
+}
