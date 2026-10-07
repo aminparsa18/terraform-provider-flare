@@ -43,3 +43,11 @@ TF_ACC=1 FLARE_ENDPOINT=http://localhost:8080 FLARE_TOKEN=flr_pat_... \
 ```
 
 Use a throwaway stack (`docker compose -p tfe2e up -d clickhouse redis ingest api` from the Flare repo, then bootstrap an admin and mint a service-account token); the tests create and destroy uniquely named objects.
+
+## Release
+
+Push a `v*` tag; `.github/workflows/release.yml` runs GoReleaser, which builds the platform zips, a GPG-signed `SHA256SUMS` and the registry manifest, and creates the GitHub release. One-time setup:
+
+1. Generate a GPG key (RSA or ECC, not expiring) and add the private key and passphrase as repository secrets `GPG_PRIVATE_KEY` and `GPG_PASSPHRASE`.
+2. Terraform Registry: sign in with GitHub, *Publish > Provider*, select this repo, and add the **public** key under *Settings > GPG Keys*.
+3. OpenTofu Registry: open an issue/PR at `opentofu/registry` to add the provider and the same public key.
