@@ -175,3 +175,87 @@ resource "flare_alert_rule" "burn" {
 		},
 	})
 }
+
+func TestAccPipelineRule(t *testing.T) {
+	cfg := func(name, pattern string) string {
+		return `
+resource "flare_pipeline_rule" "p" {
+  name = "` + name + `"
+  condition = {
+    services = ["acc-api"]
+  }
+  actions = [
+    { kind = "RedactRegex", pattern = "` + pattern + `", replacement = "[card]" },
+    { kind = "ExtractRegex", pattern = "user=(?<user>\\w+)", source_attribute_key = "raw" },
+    { kind = "ParseJson", key_prefix = "json.", max_depth = 3 },
+  ]
+}
+
+resource "flare_pipeline_rule" "all" {
+  name    = "acc-pipeline-all"
+  enabled = false
+  actions = [{ kind = "RedactRegex", pattern = "secret" }]
+}`
+	}
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { accPreCheck(t) },
+		ProtoV6ProviderFactories: accFactories,
+		Steps: []resource.TestStep{
+			{Config: cfg("acc-pipeline", `\\d{16}`), Check: resource.ComposeAggregateTestCheckFunc(
+				resource.TestCheckResourceAttr("flare_pipeline_rule.p", "enabled", "true"),
+				resource.TestCheckResourceAttr("flare_pipeline_rule.p", "actions.#", "3"),
+				resource.TestCheckResourceAttr("flare_pipeline_rule.all", "enabled", "false"),
+			)},
+			{Config: cfg("acc-pipeline", `\\d{16}`), PlanOnly: true}, // omitted condition/replacement/limits replan clean
+			{Config: cfg("acc-pipeline-renamed", `\\d{12}`), Check: resource.TestCheckResourceAttr("flare_pipeline_rule.p", "name", "acc-pipeline-renamed")},
+			{ResourceName: "flare_pipeline_rule.p", ImportState: true, ImportStateId: "acc-pipeline-renamed", ImportStateVerify: true, ImportStateVerifyIdentifierAttribute: "id"},
+			{ResourceName: "flare_pipeline_rule.all", ImportState: true, ImportStateId: "acc-pipeline-all", ImportStateVerify: true, ImportStateVerifyIdentifierAttribute: "id"},
+		},
+	})
+}
+
+func TestAccMaintenanceWindow(t *testing.T) {
+	cfg := func(name, end string) string {
+		return accChannel + `
+resource "flare_alert_rule" "r" {
+  name           = "acc-mw-rule"
+  threshold      = 10
+  window_seconds = 300
+  channels       = [flare_notification_channel.c.name]
+}
+
+resource "flare_maintenance_window" "oneoff" {
+  name       = "` + name + `"
+  starts_at  = "2030-01-01T02:00:00Z"
+  ends_at    = "` + end + `"
+  rule_names = [flare_alert_rule.r.name]
+}
+
+resource "flare_maintenance_window" "weekly" {
+  name           = "acc-mw-weekly"
+  starts_at      = "2030-01-01T02:00:00Z"
+  ends_at        = "2030-01-01T04:00:00Z"
+  recurrence     = "Weekly"
+  days_of_week   = ["Sunday", "Saturday"]
+  time_zone      = "Europe/Berlin"
+  repeat_until   = "2031-01-01T00:00:00Z"
+  label_matchers = { team = "core" }
+}`
+	}
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { accPreCheck(t) },
+		ProtoV6ProviderFactories: accFactories,
+		Steps: []resource.TestStep{
+			{Config: cfg("acc-mw", "2030-01-01T04:00:00Z"), Check: resource.ComposeAggregateTestCheckFunc(
+				resource.TestCheckResourceAttr("flare_maintenance_window.oneoff", "recurrence", "None"),
+				resource.TestCheckResourceAttr("flare_maintenance_window.oneoff", "time_zone", "UTC"),
+				resource.TestCheckResourceAttr("flare_maintenance_window.oneoff", "rule_names.#", "1"),
+				resource.TestCheckResourceAttr("flare_maintenance_window.weekly", "days_of_week.#", "2"),
+			)},
+			{Config: cfg("acc-mw", "2030-01-01T04:00:00Z"), PlanOnly: true},
+			{Config: cfg("acc-mw-renamed", "2030-01-01T05:00:00Z"), Check: resource.TestCheckResourceAttr("flare_maintenance_window.oneoff", "name", "acc-mw-renamed")},
+			{ResourceName: "flare_maintenance_window.oneoff", ImportState: true, ImportStateId: "acc-mw-renamed", ImportStateVerify: true, ImportStateVerifyIdentifierAttribute: "id"},
+			{ResourceName: "flare_maintenance_window.weekly", ImportState: true, ImportStateId: "acc-mw-weekly", ImportStateVerify: true, ImportStateVerifyIdentifierAttribute: "id"},
+		},
+	})
+}

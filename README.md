@@ -2,7 +2,7 @@
 
 Terraform / OpenTofu provider for [Flare](https://github.com/aminparsa18/Flare.Net), the self-hosted OpenTelemetry observability platform. Design: ADR-0146 in the Flare repo.
 
-**Status: early.** Implemented: `flare_notification_channel` (resource and data source). Planned: `flare_alert_rule`, `flare_slo`, then dashboards, pipeline rules, maintenance windows, ingest keys and service accounts.
+**Status: early.** Implemented: `flare_notification_channel` (resource and data source), `flare_alert_rule`, `flare_slo`, `flare_maintenance_window`, `flare_pipeline_rule`. Planned: ingest keys, service accounts, dashboards and metric attribute rules.
 
 ```hcl
 provider "flare" {

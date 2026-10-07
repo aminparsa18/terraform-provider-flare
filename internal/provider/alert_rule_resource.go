@@ -193,25 +193,7 @@ func (r *alertRuleResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 			"second_escalate_after_minutes": intDefault("Second escalation delay in minutes; 0 disables.", 0),
 			"second_escalation_channels":    strList("Channel names notified on the second escalation."),
 
-			"log_condition": schema.SingleNestedAttribute{
-				Optional:    true,
-				Description: "Filter for `LogCount` rules (and `Anomaly` rules whose source is `LogCount`).",
-				Attributes: map[string]schema.Attribute{
-					"services":         strList("Only logs from these services."),
-					"severity_numbers": schema.ListAttribute{Optional: true, ElementType: types.Int64Type, Description: "Only these OTel severity numbers (1-24)."},
-					"search":           schema.StringAttribute{Optional: true, Description: "Substring match on the log body."},
-					"scope_names":      strList("Only logs from these instrumentation scopes (a trailing `*` matches a prefix)."),
-					"attributes": schema.ListNestedAttribute{
-						Optional:    true,
-						Description: "Attribute equality filters.",
-						NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{
-							"bag":   enum("Which attribute set the key belongs to.", attributeBags, "Log"),
-							"key":   schema.StringAttribute{Required: true},
-							"value": schema.StringAttribute{Required: true},
-						}},
-					},
-				},
-			},
+			"log_condition": logFilterAttribute("Filter for `LogCount` rules (and `Anomaly` rules whose source is `LogCount`)."),
 			"metric_condition": schema.SingleNestedAttribute{
 				Optional:    true,
 				Description: "Required for `MetricThreshold` rules (and `Anomaly` rules whose source is `MetricThreshold`).",
@@ -419,16 +401,7 @@ func (m alertRuleModel) toAPI(dir channelDirectory) (client.AlertRule, error) {
 		return rule, fmt.Errorf("second_escalation_channels: %w", err)
 	}
 
-	if c := m.LogCondition; c != nil {
-		f := &client.LogFilter{Services: stringSlice(c.Services), ScopeNames: stringSlice(c.ScopeNames), Search: strPtr(c.Search)}
-		for _, n := range c.SeverityNumbers {
-			f.SeverityNumbers = append(f.SeverityNumbers, int(n.ValueInt64()))
-		}
-		for _, a := range c.Attributes {
-			f.Attributes = append(f.Attributes, client.AttributeFilter{Bag: a.Bag.ValueString(), Key: a.Key.ValueString(), Value: a.Value.ValueString()})
-		}
-		rule.Condition = f
-	}
+	rule.Condition = m.LogCondition.toAPI()
 	if c := m.MetricCondition; c != nil {
 		rule.MetricCondition = &client.MetricAlertCondition{
 			MetricName: c.MetricName.ValueString(), Type: c.Type.ValueString(), Aggregation: c.Aggregation.ValueString(),

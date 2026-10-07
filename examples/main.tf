@@ -40,3 +40,19 @@ resource "flare_alert_rule" "burn" {
     burn_rate_threshold  = 14
   }
 }
+
+resource "flare_pipeline_rule" "redact_cards" {
+  name = "Redact card numbers"
+  condition = {
+    services = ["checkout"]
+  }
+  actions = [{ kind = "RedactRegex", pattern = "\\d{16}", replacement = "[card]" }]
+}
+
+resource "flare_maintenance_window" "weekly_patching" {
+  name         = "Weekly patching"
+  starts_at    = "2030-01-06T02:00:00Z"
+  ends_at      = "2030-01-06T04:00:00Z"
+  recurrence   = "Weekly"
+  days_of_week = ["Sunday"]
+}
