@@ -21,7 +21,7 @@ resource "flare_notification_channel" "oncall" {
 
 - **Names are the stable key.** Flare keeps channel, alert-rule and SLO names unique (case-insensitive), so other resources reference them by name and the provider resolves ids. Renaming updates in place.
 - **Credentials are write-only.** Flare never returns them, so they are `sensitive`, kept from your configuration, and changes made outside Terraform are not detected. Importing a channel (`terraform import flare_notification_channel.x <id-or-name>`) therefore leaves them unset until the next apply writes them.
-- **Compatibility.** At configure time the provider reads `GET /api/version` and refuses a server older than the minimum it supports.
+- **Compatibility.** At configure time the provider reads `GET /api/version` and refuses a server older than the minimum it supports (Flare 0.6.0). Development builds are never refused.
 
 ## Develop
 

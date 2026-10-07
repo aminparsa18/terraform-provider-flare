@@ -14,9 +14,10 @@ import (
 )
 
 // minServerVersion is the oldest Flare release whose API this provider supports: the one that added
-// unique names and service-account get/delete (ADR-0146 phase 1). Update it when that release is cut;
-// until then it is "0.0.0", which enforces nothing.
-const minServerVersion = "0.0.0"
+// unique names and service-account get/delete (ADR-0146 phase 1, plus the phase 3 uniqueness checks and
+// per-project dashboard names). Assumed to be 0.6.0, the next release after 0.5.1; correct it if the
+// release is numbered differently. Dev builds ("dev") are never rejected.
+const minServerVersion = "0.6.0"
 
 type flareProvider struct{ version string }
 
