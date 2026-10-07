@@ -259,3 +259,44 @@ resource "flare_maintenance_window" "weekly" {
 		},
 	})
 }
+
+func TestAccIngestKeyAndServiceAccount(t *testing.T) {
+	cfg := func(name string, perMinute string) string {
+		return `
+resource "flare_service_account" "sa" {
+  name = "acc-sa"
+  role = "Member"
+}
+
+resource "flare_ingest_key" "k" {
+  name                  = "` + name + `"
+  limits_enabled        = true
+  max_events_per_minute = ` + perMinute + `
+}
+
+resource "flare_ingest_key" "plain" {
+  name = "acc-key-plain"
+}`
+	}
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { accPreCheck(t) },
+		ProtoV6ProviderFactories: accFactories,
+		Steps: []resource.TestStep{
+			{Config: cfg("acc-key", "1000"), Check: resource.ComposeAggregateTestCheckFunc(
+				resource.TestCheckResourceAttrSet("flare_ingest_key.k", "raw_key"),
+				resource.TestCheckResourceAttr("flare_ingest_key.k", "max_events_per_minute", "1000"),
+				resource.TestCheckResourceAttr("flare_ingest_key.plain", "limits_enabled", "false"),
+				resource.TestCheckResourceAttr("flare_service_account.sa", "role", "Member"),
+			)},
+			{Config: cfg("acc-key", "1000"), PlanOnly: true},
+			{Config: cfg("acc-key-renamed", "2000"), Check: resource.ComposeAggregateTestCheckFunc(
+				resource.TestCheckResourceAttr("flare_ingest_key.k", "name", "acc-key-renamed"),
+				resource.TestCheckResourceAttr("flare_ingest_key.k", "max_events_per_minute", "2000"),
+				resource.TestCheckResourceAttrSet("flare_ingest_key.k", "raw_key"), // kept across an in-place update
+			)},
+			{ResourceName: "flare_ingest_key.k", ImportState: true, ImportStateId: "acc-key-renamed", ImportStateVerify: true,
+				ImportStateVerifyIdentifierAttribute: "id", ImportStateVerifyIgnore: []string{"raw_key"}},
+			{ResourceName: "flare_service_account.sa", ImportState: true, ImportStateId: "acc-sa", ImportStateVerify: true, ImportStateVerifyIdentifierAttribute: "id"},
+		},
+	})
+}
