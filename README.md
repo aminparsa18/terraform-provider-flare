@@ -1,0 +1,32 @@
+# terraform-provider-flare
+
+Terraform / OpenTofu provider for [Flare](https://github.com/aminparsa18/Flare.Net), the self-hosted OpenTelemetry observability platform. Design: ADR-0146 in the Flare repo.
+
+**Status: early.** Implemented: `flare_notification_channel` (resource and data source). Planned: `flare_alert_rule`, `flare_slo`, then dashboards, pipeline rules, maintenance windows, ingest keys and service accounts.
+
+```hcl
+provider "flare" {
+  endpoint = "https://flare.example.com" # or FLARE_ENDPOINT
+  token    = var.flare_token             # or FLARE_TOKEN; a service-account access token (flr_pat_...)
+}
+
+resource "flare_notification_channel" "oncall" {
+  name        = "oncall-slack"
+  type        = "Webhook"
+  webhook_url = var.slack_webhook_url
+}
+```
+
+## Conventions
+
+- **Names are the stable key.** Flare keeps channel, alert-rule and SLO names unique (case-insensitive), so other resources reference them by name and the provider resolves ids. Renaming updates in place.
+- **Credentials are write-only.** Flare never returns them, so they are `sensitive`, kept from your configuration, and changes made outside Terraform are not detected. Importing a channel (`terraform import flare_notification_channel.x <id-or-name>`) therefore leaves them unset until the next apply writes them.
+- **Compatibility.** At configure time the provider reads `GET /api/version` and refuses a server older than the minimum it supports.
+
+## Develop
+
+```bash
+go build ./... && go vet ./... && go test ./...
+```
+
+Tests use `httptest` fakes and need no Flare server. The Flare API changes live in the Flare repo; this provider needs a build with unique names and service-account get/delete (ADR-0146 phase 1).
