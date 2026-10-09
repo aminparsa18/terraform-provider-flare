@@ -7,6 +7,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/hashicorp/terraform-plugin-testing/tfversion"
 )
 
@@ -440,6 +441,54 @@ resource "flare_archive_settings" "a" {
 				resource.TestCheckResourceAttr("flare_archive_settings.a", "signals.#", "1"),
 			)},
 			{ResourceName: "flare_archive_settings.a", ImportState: true, ImportStateId: "archive", ImportStateVerify: true, ImportStateVerifyIdentifierAttribute: "id", ImportStateVerifyIgnore: []string{"access_key", "secret_key"}},
+		},
+	})
+}
+
+func TestAccStatusIncident(t *testing.T) {
+	cfg := func(status, message, components string) string {
+		return `
+resource "flare_slo" "s" {
+  name           = "acc-incident-slo"
+  kind           = "Availability"
+  service_name   = "api"
+  target_percent = 99.9
+}
+
+resource "flare_status_page" "p" {
+  slug       = "acc-incident-page"
+  title      = "Acc"
+  components = [{ name = "API", kind = "Slo", ref_id = flare_slo.s.id }]
+}
+
+resource "flare_status_incident" "i" {
+  page_id    = flare_status_page.p.id
+  title      = "Elevated errors"
+  status     = "` + status + `"
+  message    = "` + message + `"
+  components = ` + components + `
+}`
+	}
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { accPreCheck(t) },
+		ProtoV6ProviderFactories: accFactories,
+		Steps: []resource.TestStep{
+			{Config: cfg("Investigating", "looking", "[]"), Check: resource.ComposeAggregateTestCheckFunc(
+				resource.TestCheckResourceAttr("flare_status_incident.i", "status", "Investigating"),
+				resource.TestCheckResourceAttr("flare_status_incident.i", "components.#", "0"),
+			)},
+			{Config: cfg("Investigating", "looking", "[]"), PlanOnly: true},
+			{Config: cfg("Resolved", "fixed", "[flare_slo.s.id]"), Check: resource.ComposeAggregateTestCheckFunc(
+				resource.TestCheckResourceAttr("flare_status_incident.i", "status", "Resolved"),
+				resource.TestCheckResourceAttr("flare_status_incident.i", "message", "fixed"),
+				resource.TestCheckResourceAttr("flare_status_incident.i", "components.#", "1"),
+			)},
+			{Config: cfg("Resolved", "fixed", "[flare_slo.s.id]"), PlanOnly: true},
+			{ResourceName: "flare_status_incident.i", ImportState: true, ImportStateVerify: true,
+				ImportStateIdFunc: func(s *terraform.State) (string, error) {
+					i := s.RootModule().Resources["flare_status_incident.i"].Primary
+					return i.Attributes["page_id"] + "/" + i.ID, nil
+				}},
 		},
 	})
 }

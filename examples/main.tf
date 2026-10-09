@@ -96,3 +96,12 @@ variable "archive_secret_key" {
   type      = string
   sensitive = true
 }
+
+# An incident on the page. Changing status/message posts a new update; `Resolved` closes it.
+resource "flare_status_incident" "outage" {
+  page_id    = flare_status_page.public.id
+  title      = "Elevated API errors"
+  status     = "Investigating"
+  message    = "We are looking into elevated error rates."
+  components = [flare_slo.api.id]
+}
