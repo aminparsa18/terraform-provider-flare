@@ -97,7 +97,7 @@ func (p *flareProvider) Configure(ctx context.Context, req provider.ConfigureReq
 }
 
 func (p *flareProvider) Resources(context.Context) []func() resource.Resource {
-	return []func() resource.Resource{NewNotificationChannelResource, NewAlertRuleResource, NewSLOResource, NewMaintenanceWindowResource, NewPipelineRuleResource, NewServiceAccountResource, NewIngestKeyResource, NewDashboardResource, NewMetricAttributeRuleResource}
+	return []func() resource.Resource{NewNotificationChannelResource, NewAlertRuleResource, NewSLOResource, NewMaintenanceWindowResource, NewPipelineRuleResource, NewServiceAccountResource, NewIngestKeyResource, NewDashboardResource, NewMetricAttributeRuleResource, NewForwardingTargetResource, NewArchiveSettingsResource}
 }
 
 func (p *flareProvider) DataSources(context.Context) []func() datasource.DataSource {

@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"context"
 	"strings"
 
 	"github.com/aminparsa18/terraform-provider-flare/internal/client"
@@ -83,3 +84,17 @@ func orDefault(s, def string) string {
 }
 
 func lower(s string) string { return strings.ToLower(strings.TrimSpace(s)) }
+
+// setToStrings reads a string set into out; null and unknown leave it untouched.
+func setToStrings(ctx context.Context, set types.Set, out *[]string) diag.Diagnostics {
+	if set.IsNull() || set.IsUnknown() {
+		return nil
+	}
+	return set.ElementsAs(ctx, out, false)
+}
+
+// stringSet is the state form of an API string list: an empty list is an empty set, never null.
+func stringSet(values []string) types.Set {
+	set, _ := types.SetValueFrom(context.Background(), types.StringType, append([]string{}, values...))
+	return set
+}

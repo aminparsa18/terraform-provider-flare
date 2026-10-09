@@ -56,3 +56,33 @@ resource "flare_maintenance_window" "weekly_patching" {
   recurrence   = "Weekly"
   days_of_week = ["Sunday"]
 }
+
+resource "flare_forwarding_target" "grafana" {
+  name     = "Grafana Cloud"
+  endpoint = "https://otlp-gateway.example.com/otlp"
+  headers  = { Authorization = "Basic ${var.grafana_token}" }
+  signals  = ["Logs", "Traces"]
+}
+
+# One per Flare instance. Destroying it resets the archive to the worker's configuration.
+resource "flare_archive_settings" "archive" {
+  endpoint   = "https://s3.eu-west-1.amazonaws.com/flare-archive"
+  access_key = var.archive_access_key
+  secret_key = var.archive_secret_key
+  format     = "Parquet"
+}
+
+variable "grafana_token" {
+  type      = string
+  sensitive = true
+}
+
+variable "archive_access_key" {
+  type      = string
+  sensitive = true
+}
+
+variable "archive_secret_key" {
+  type      = string
+  sensitive = true
+}

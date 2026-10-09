@@ -380,3 +380,66 @@ resource "flare_metric_attribute_rule" "keep" {
 		},
 	})
 }
+
+func TestAccForwardingTarget(t *testing.T) {
+	cfg := func(name, extra string) string {
+		return `
+resource "flare_forwarding_target" "f" {
+  name     = "` + name + `"
+  endpoint = "https://otlp.example.com"
+  headers  = { Authorization = "Bearer acc-secret" }
+` + extra + `
+}`
+	}
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { accPreCheck(t) },
+		ProtoV6ProviderFactories: accFactories,
+		Steps: []resource.TestStep{
+			{Config: cfg("acc-forward", ""), Check: resource.ComposeAggregateTestCheckFunc(
+				resource.TestCheckResourceAttr("flare_forwarding_target.f", "enabled", "true"),
+				resource.TestCheckResourceAttr("flare_forwarding_target.f", "gzip", "true"),
+				resource.TestCheckResourceAttr("flare_forwarding_target.f", "signals.#", "0"),
+			)},
+			{Config: cfg("acc-forward", ""), PlanOnly: true}, // masked headers must not show as drift
+			{Config: cfg("acc-forward-renamed", `signals = ["Logs", "Traces"]
+  services = ["checkout"]
+  gzip     = false`), Check: resource.ComposeAggregateTestCheckFunc(
+				resource.TestCheckResourceAttr("flare_forwarding_target.f", "signals.#", "2"),
+				resource.TestCheckResourceAttr("flare_forwarding_target.f", "services.#", "1"),
+				resource.TestCheckResourceAttr("flare_forwarding_target.f", "gzip", "false"),
+			)},
+			{ResourceName: "flare_forwarding_target.f", ImportState: true, ImportStateId: "acc-forward-renamed", ImportStateVerify: true, ImportStateVerifyIdentifierAttribute: "id", ImportStateVerifyIgnore: []string{"headers"}},
+		},
+	})
+}
+
+func TestAccArchiveSettings(t *testing.T) {
+	cfg := func(extra string) string {
+		return `
+resource "flare_archive_settings" "a" {
+  endpoint   = "https://s3.example.com/acc-bucket"
+  access_key = "acc-access"
+  secret_key = "acc-secret"
+` + extra + `
+}`
+	}
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { accPreCheck(t) },
+		ProtoV6ProviderFactories: accFactories,
+		Steps: []resource.TestStep{
+			{Config: cfg(""), Check: resource.ComposeAggregateTestCheckFunc(
+				resource.TestCheckResourceAttr("flare_archive_settings.a", "id", "archive"),
+				resource.TestCheckResourceAttr("flare_archive_settings.a", "format", "Parquet"),
+				resource.TestCheckResourceAttr("flare_archive_settings.a", "prefix", "flare"),
+			)},
+			{Config: cfg(""), PlanOnly: true},
+			{Config: cfg(`format  = "Ndjson"
+  prefix  = "acc"
+  signals = ["Logs"]`), Check: resource.ComposeAggregateTestCheckFunc(
+				resource.TestCheckResourceAttr("flare_archive_settings.a", "format", "Ndjson"),
+				resource.TestCheckResourceAttr("flare_archive_settings.a", "signals.#", "1"),
+			)},
+			{ResourceName: "flare_archive_settings.a", ImportState: true, ImportStateId: "archive", ImportStateVerify: true, ImportStateVerifyIdentifierAttribute: "id", ImportStateVerifyIgnore: []string{"access_key", "secret_key"}},
+		},
+	})
+}
