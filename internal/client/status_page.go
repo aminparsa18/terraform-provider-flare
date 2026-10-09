@@ -21,6 +21,9 @@ type StatusPage struct {
 	Description *string               `json:"description,omitempty"`
 	Enabled     *bool                 `json:"enabled,omitempty"`
 	Components  []StatusPageComponent `json:"components"`
+	// SubscriberChannelIDs are notification channels told about every incident (ADR-0161). Always sent, so an
+	// empty list clears them; the API treats an absent field as "leave as is".
+	SubscriberChannelIDs []string `json:"subscriberChannelIds"`
 }
 
 type statusPageList struct {

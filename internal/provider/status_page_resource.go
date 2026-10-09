@@ -6,6 +6,7 @@ import (
 	"github.com/aminparsa18/terraform-provider-flare/internal/client"
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -43,6 +44,8 @@ type statusPageModel struct {
 	Description types.String           `tfsdk:"description"`
 	Enabled     types.Bool             `tfsdk:"enabled"`
 	Components  []statusComponentModel `tfsdk:"components"`
+
+	SubscriberChannelIDs types.Set `tfsdk:"subscriber_channel_ids"`
 }
 
 func (r *statusPageResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -68,6 +71,10 @@ func (r *statusPageResource) Schema(_ context.Context, _ resource.SchemaRequest,
 				Optional: true, Computed: true, Default: booldefault.StaticBool(false),
 				Description: "Publishes the page to anyone with the URL. Defaults to false.",
 			},
+			"subscriber_channel_ids": schema.SetAttribute{
+				Optional: true, Computed: true, ElementType: types.StringType, Default: emptyStringSet(),
+				Description: "Notification channels (webhook, Slack, Telegram, email, Teams or Discord; at most 20) told about every incident on the page, e.g. `flare_notification_channel.oncall.id`. Empty (the default) tells none.",
+			},
 			"components": schema.ListNestedAttribute{
 				Optional:    true,
 				Description: "Rows of the page, in order (at most 50).",
@@ -89,17 +96,21 @@ func (r *statusPageResource) Configure(_ context.Context, req resource.Configure
 	r.client = configuredClient(req.ProviderData, &resp.Diagnostics)
 }
 
-func (m statusPageModel) toAPI() client.StatusPage {
+func (m statusPageModel) toAPI() (client.StatusPage, diag.Diagnostics) {
+	var diags diag.Diagnostics
+	channels := []string{}
+	diags.Append(setToStrings(context.Background(), m.SubscriberChannelIDs, &channels)...)
 	out := client.StatusPage{
 		Slug: m.Slug.ValueString(), Title: m.Title.ValueString(), Description: strPtr(m.Description),
 		Enabled: boolPtr(m.Enabled), Components: []client.StatusPageComponent{},
+		SubscriberChannelIDs: channels,
 	}
 	for _, c := range m.Components {
 		out.Components = append(out.Components, client.StatusPageComponent{
 			Name: c.Name.ValueString(), Kind: c.Kind.ValueString(), RefID: c.RefID.ValueString(),
 		})
 	}
-	return out
+	return out, diags
 }
 
 func (m *statusPageModel) fromAPI(api client.StatusPage) {
@@ -108,6 +119,7 @@ func (m *statusPageModel) fromAPI(api client.StatusPage) {
 	m.Title = types.StringValue(api.Title)
 	m.Description = types.StringValue(deref(api.Description))
 	m.Enabled = types.BoolValue(api.Enabled != nil && *api.Enabled)
+	m.SubscriberChannelIDs = stringSet(api.SubscriberChannelIDs)
 	// No components reads back as null so an omitted attribute stays a no-op diff.
 	m.Components = nil
 	for _, c := range api.Components {
@@ -123,7 +135,12 @@ func (r *statusPageResource) Create(ctx context.Context, req resource.CreateRequ
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	created, err := r.client.CreateStatusPage(ctx, plan.toAPI())
+	body, diags := plan.toAPI()
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	created, err := r.client.CreateStatusPage(ctx, body)
 	if err != nil {
 		resp.Diagnostics.AddError("Creating status page", err.Error())
 		return
@@ -158,7 +175,12 @@ func (r *statusPageResource) Update(ctx context.Context, req resource.UpdateRequ
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	updated, err := r.client.UpdateStatusPage(ctx, state.ID.ValueString(), plan.toAPI())
+	body, diags := plan.toAPI()
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	updated, err := r.client.UpdateStatusPage(ctx, state.ID.ValueString(), body)
 	if err != nil {
 		resp.Diagnostics.AddError("Updating status page", err.Error())
 		return

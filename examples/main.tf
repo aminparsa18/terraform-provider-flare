@@ -80,6 +80,7 @@ resource "flare_status_page" "public" {
   components = [
     { name = "API", kind = "Slo", ref_id = flare_slo.api.id },
   ]
+  subscriber_channel_ids = [flare_notification_channel.hook.id]
 }
 
 variable "grafana_token" {
