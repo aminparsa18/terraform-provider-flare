@@ -63,6 +63,7 @@ type alertRuleModel struct {
 	Labels                     map[string]types.String  `tfsdk:"labels"`
 	NotificationTitleTemplate  types.String             `tfsdk:"notification_title_template"`
 	NotificationBodyTemplate   types.String             `tfsdk:"notification_body_template"`
+	NotificationTemplate       types.String             `tfsdk:"notification_template"`
 	Channels                   []types.String           `tfsdk:"channels"`
 	EscalateAfterMinutes       types.Int64              `tfsdk:"escalate_after_minutes"`
 	EscalationChannels         []types.String           `tfsdk:"escalation_channels"`
@@ -180,13 +181,17 @@ func (r *alertRuleResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 				Optional: true, Computed: true, Default: int64default.StaticInt64(300),
 				Description: "Minimum seconds between repeat notifications. Defaults to 300.", Validators: []validator.Int64{int64validator.AtLeast(0)},
 			},
-			"evaluation_interval_seconds":   intDefault("How often the rule is evaluated; 0 means every poll tick.", 0),
-			"no_data_window_seconds":        intDefault("Fire when no data arrives for this long; 0 disables the check.", 0),
-			"min_data_points":               intDefault("MetricThreshold only: skip evaluation until the window has at least this many points; 0 disables.", 0),
-			"severity":                      enum("Severity attached to notifications.", severities, "Critical"),
-			"labels":                        kvMap("Free-form labels carried on notifications."),
-			"notification_title_template":   schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString(""), Description: "Custom notification title; empty uses the default."},
-			"notification_body_template":    schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString(""), Description: "Custom notification body; empty uses the default."},
+			"evaluation_interval_seconds": intDefault("How often the rule is evaluated; 0 means every poll tick.", 0),
+			"no_data_window_seconds":      intDefault("Fire when no data arrives for this long; 0 disables the check.", 0),
+			"min_data_points":             intDefault("MetricThreshold only: skip evaluation until the window has at least this many points; 0 disables.", 0),
+			"severity":                    enum("Severity attached to notifications.", severities, "Critical"),
+			"labels":                      kvMap("Free-form labels carried on notifications."),
+			"notification_title_template": schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString(""), Description: "Custom notification title; empty uses the default."},
+			"notification_body_template":  schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString(""), Description: "Custom notification body; empty uses the default."},
+			"notification_template": schema.StringAttribute{
+				Optional:    true,
+				Description: "Name of a `flare_alert_template` supplying the notification wording. The rule's own title/body above still override it; with none set, the instance default template (if any) applies.",
+			},
 			"channels":                      strList("Names of `flare_notification_channel`s notified when the rule fires."),
 			"escalate_after_minutes":        intDefault("Escalate if still unacknowledged after this many minutes; 0 disables escalation.", 0),
 			"escalation_channels":           strList("Channel names notified on the first escalation."),
@@ -303,6 +308,23 @@ func keyValueMap(in []client.KeyValue, prior map[string]types.String) map[string
 type channelDirectory struct {
 	byName map[string]string
 	byID   map[string]string
+
+	// Alert-template names, loaded only when a rule references one so servers without the endpoint still work.
+	templateByName map[string]string
+	templateByID   map[string]string
+}
+
+func (r *alertRuleResource) loadTemplates(ctx context.Context, d *channelDirectory) error {
+	all, err := r.client.ListAlertTemplates(ctx)
+	if err != nil {
+		return err
+	}
+	d.templateByName, d.templateByID = map[string]string{}, map[string]string{}
+	for _, t := range all {
+		d.templateByName[lower(t.Name)] = t.ID
+		d.templateByID[t.ID] = t.Name
+	}
+	return nil
 }
 
 func (r *alertRuleResource) channels(ctx context.Context) (channelDirectory, error) {
@@ -360,6 +382,13 @@ func (m alertRuleModel) toAPI(dir channelDirectory) (client.AlertRule, error) {
 		EscalateAfterMinutes:       intPtr(m.EscalateAfterMinutes),
 		SecondEscalateAfterMinutes: intPtr(m.SecondEscalateAfterMinutes),
 		Threshold:                  client.AlertThreshold{Comparator: m.Comparator.ValueString()},
+	}
+	if !m.NotificationTemplate.IsNull() && !m.NotificationTemplate.IsUnknown() {
+		id, ok := dir.templateByName[lower(m.NotificationTemplate.ValueString())]
+		if !ok {
+			return rule, fmt.Errorf("notification_template: no alert template named %q", m.NotificationTemplate.ValueString())
+		}
+		rule.NotificationTemplateID = &id
 	}
 	if !m.RecoveryThreshold.IsNull() {
 		v := m.RecoveryThreshold.ValueFloat64()
@@ -460,6 +489,13 @@ func (m *alertRuleModel) fromAPI(api client.AlertRule, dir channelDirectory) {
 	m.Severity = types.StringValue(orDefault(api.Severity, "Critical"))
 	m.NotificationTitleTemplate = types.StringValue(deref(api.NotificationTitleTemplate))
 	m.NotificationBodyTemplate = types.StringValue(deref(api.NotificationBodyTemplate))
+	// A template deleted out from under the rule reads back as unset, so the plan re-adds the reference.
+	m.NotificationTemplate = types.StringNull()
+	if api.NotificationTemplateID != nil {
+		if name, ok := dir.templateByID[*api.NotificationTemplateID]; ok {
+			m.NotificationTemplate = types.StringValue(name)
+		}
+	}
 	m.EscalateAfterMinutes = types.Int64Value(int64(derefInt(api.EscalateAfterMinutes, 0)))
 	m.SecondEscalateAfterMinutes = types.Int64Value(int64(derefInt(api.SecondEscalateAfterMinutes, 0)))
 
@@ -570,6 +606,12 @@ func (r *alertRuleResource) build(ctx context.Context, m alertRuleModel, diags *
 		diags.AddError("Listing notification channels", err.Error())
 		return client.AlertRule{}, dir, false
 	}
+	if !m.NotificationTemplate.IsNull() && !m.NotificationTemplate.IsUnknown() {
+		if err := r.loadTemplates(ctx, &dir); err != nil {
+			diags.AddError("Listing alert templates", err.Error())
+			return client.AlertRule{}, dir, false
+		}
+	}
 	rule, err := m.toAPI(dir)
 	if err != nil {
 		diags.AddError("Invalid alert rule", err.Error())
@@ -616,6 +658,12 @@ func (r *alertRuleResource) Read(ctx context.Context, req resource.ReadRequest, 
 	if err != nil {
 		resp.Diagnostics.AddError("Listing notification channels", err.Error())
 		return
+	}
+	if got.NotificationTemplateID != nil {
+		if err := r.loadTemplates(ctx, &dir); err != nil {
+			resp.Diagnostics.AddError("Listing alert templates", err.Error())
+			return
+		}
 	}
 	state.fromAPI(got, dir)
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
