@@ -31,6 +31,7 @@ type AlertRule struct {
 
 	NotificationTitleTemplate *string           `json:"notificationTitleTemplate,omitempty"`
 	NotificationBodyTemplate  *string           `json:"notificationBodyTemplate,omitempty"`
+	NotificationTemplateID    *string           `json:"notificationTemplateId,omitempty"`
 	Labels                    map[string]string `json:"labels,omitempty"`
 
 	ChannelIDs                 []string `json:"channelIds,omitempty"`

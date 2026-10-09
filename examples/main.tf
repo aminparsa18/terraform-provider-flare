@@ -16,7 +16,15 @@ resource "flare_slo" "api" {
   target_percent = 99.9
 }
 
+resource "flare_alert_template" "short" {
+  name           = "tf-short"
+  title_template = "{{rule_name}} is {{status}}"
+  body_template  = "{{rule_name}}: {{value}} in the last {{window}}"
+  channel_bodies = { Telegram = "{{rule_name}} {{status}}" }
+}
+
 resource "flare_alert_rule" "errors" {
+  notification_template = flare_alert_template.short.name
   name           = "tf-errors"
   threshold      = 10
   window_seconds = 300
