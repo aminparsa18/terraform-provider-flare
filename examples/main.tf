@@ -72,6 +72,16 @@ resource "flare_archive_settings" "archive" {
   format     = "Parquet"
 }
 
+# Public page at /status/acme-public; stays unpublished until enabled.
+resource "flare_status_page" "public" {
+  slug    = "acme-public"
+  title   = "Acme status"
+  enabled = true
+  components = [
+    { name = "API", kind = "Slo", ref_id = flare_slo.api.id },
+  ]
+}
+
 variable "grafana_token" {
   type      = string
   sensitive = true
