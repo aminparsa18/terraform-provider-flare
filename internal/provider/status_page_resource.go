@@ -24,7 +24,7 @@ var (
 	_ resource.ResourceWithImportState = (*statusPageResource)(nil)
 )
 
-var statusComponentKinds = []string{"Monitor", "Slo"}
+var statusComponentKinds = []string{"Monitor", "Slo", "CheckIn"}
 
 // NewStatusPageResource is the flare_status_page factory.
 func NewStatusPageResource() resource.Resource { return &statusPageResource{} }
