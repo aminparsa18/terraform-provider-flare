@@ -8,24 +8,28 @@ import (
 
 // IngestKey mirrors the API's IngestApiKeyDto. RawKey is only ever present on a create response.
 type IngestKey struct {
-	ID                 string  `json:"id"`
-	Name               string  `json:"name"`
-	IsActive           bool    `json:"isActive"`
-	LimitsEnabled      bool    `json:"limitsEnabled"`
-	MaxEventsPerMinute *int64  `json:"maxEventsPerMinute,omitempty"`
-	MaxBytesPerMinute  *int64  `json:"maxBytesPerMinute,omitempty"`
-	MaxEventsPerDay    *int64  `json:"maxEventsPerDay,omitempty"`
-	MaxBytesPerDay     *int64  `json:"maxBytesPerDay,omitempty"`
-	ProjectID          *string `json:"projectId,omitempty"`
+	ID                      string  `json:"id"`
+	Name                    string  `json:"name"`
+	IsActive                bool    `json:"isActive"`
+	LimitsEnabled           bool    `json:"limitsEnabled"`
+	MaxEventsPerMinute      *int64  `json:"maxEventsPerMinute,omitempty"`
+	MaxBytesPerMinute       *int64  `json:"maxBytesPerMinute,omitempty"`
+	MaxEventsPerDay         *int64  `json:"maxEventsPerDay,omitempty"`
+	MaxBytesPerDay          *int64  `json:"maxBytesPerDay,omitempty"`
+	MaxReplayBytesPerMinute *int64  `json:"maxReplayBytesPerMinute,omitempty"`
+	MaxReplayBytesPerDay    *int64  `json:"maxReplayBytesPerDay,omitempty"`
+	ProjectID               *string `json:"projectId,omitempty"`
 }
 
-// IngestKeyLimits is the body of PUT /api/ingest-keys/{id}/limits, which replaces all five settings.
+// IngestKeyLimits is the body of PUT /api/ingest-keys/{id}/limits, which replaces all seven settings.
 type IngestKeyLimits struct {
-	LimitsEnabled      bool   `json:"limitsEnabled"`
-	MaxEventsPerMinute *int64 `json:"maxEventsPerMinute,omitempty"`
-	MaxBytesPerMinute  *int64 `json:"maxBytesPerMinute,omitempty"`
-	MaxEventsPerDay    *int64 `json:"maxEventsPerDay,omitempty"`
-	MaxBytesPerDay     *int64 `json:"maxBytesPerDay,omitempty"`
+	LimitsEnabled           bool   `json:"limitsEnabled"`
+	MaxEventsPerMinute      *int64 `json:"maxEventsPerMinute,omitempty"`
+	MaxBytesPerMinute       *int64 `json:"maxBytesPerMinute,omitempty"`
+	MaxEventsPerDay         *int64 `json:"maxEventsPerDay,omitempty"`
+	MaxBytesPerDay          *int64 `json:"maxBytesPerDay,omitempty"`
+	MaxReplayBytesPerMinute *int64 `json:"maxReplayBytesPerMinute,omitempty"`
+	MaxReplayBytesPerDay    *int64 `json:"maxReplayBytesPerDay,omitempty"`
 }
 
 type createIngestKeyRequest struct {

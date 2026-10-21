@@ -273,6 +273,7 @@ resource "flare_ingest_key" "k" {
   name                  = "` + name + `"
   limits_enabled        = true
   max_events_per_minute = ` + perMinute + `
+  max_replay_bytes_per_day = ` + perMinute + `000
 }
 
 resource "flare_ingest_key" "plain" {
@@ -286,6 +287,7 @@ resource "flare_ingest_key" "plain" {
 			{Config: cfg("acc-key", "1000"), Check: resource.ComposeAggregateTestCheckFunc(
 				resource.TestCheckResourceAttrSet("flare_ingest_key.k", "raw_key"),
 				resource.TestCheckResourceAttr("flare_ingest_key.k", "max_events_per_minute", "1000"),
+				resource.TestCheckResourceAttr("flare_ingest_key.k", "max_replay_bytes_per_day", "1000000"),
 				resource.TestCheckResourceAttr("flare_ingest_key.plain", "limits_enabled", "false"),
 				resource.TestCheckResourceAttr("flare_service_account.sa", "role", "Member"),
 			)},
@@ -293,6 +295,7 @@ resource "flare_ingest_key" "plain" {
 			{Config: cfg("acc-key-renamed", "2000"), Check: resource.ComposeAggregateTestCheckFunc(
 				resource.TestCheckResourceAttr("flare_ingest_key.k", "name", "acc-key-renamed"),
 				resource.TestCheckResourceAttr("flare_ingest_key.k", "max_events_per_minute", "2000"),
+				resource.TestCheckResourceAttr("flare_ingest_key.k", "max_replay_bytes_per_day", "2000000"),
 				resource.TestCheckResourceAttrSet("flare_ingest_key.k", "raw_key"), // kept across an in-place update
 			)},
 			{ResourceName: "flare_ingest_key.k", ImportState: true, ImportStateId: "acc-key-renamed", ImportStateVerify: true,

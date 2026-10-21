@@ -27,15 +27,17 @@ func NewIngestKeyResource() resource.Resource { return &ingestKeyResource{} }
 type ingestKeyResource struct{ client *client.Client }
 
 type ingestKeyModel struct {
-	ID                 types.String `tfsdk:"id"`
-	Name               types.String `tfsdk:"name"`
-	ProjectID          types.String `tfsdk:"project_id"`
-	LimitsEnabled      types.Bool   `tfsdk:"limits_enabled"`
-	MaxEventsPerMinute types.Int64  `tfsdk:"max_events_per_minute"`
-	MaxBytesPerMinute  types.Int64  `tfsdk:"max_bytes_per_minute"`
-	MaxEventsPerDay    types.Int64  `tfsdk:"max_events_per_day"`
-	MaxBytesPerDay     types.Int64  `tfsdk:"max_bytes_per_day"`
-	RawKey             types.String `tfsdk:"raw_key"`
+	ID                      types.String `tfsdk:"id"`
+	Name                    types.String `tfsdk:"name"`
+	ProjectID               types.String `tfsdk:"project_id"`
+	LimitsEnabled           types.Bool   `tfsdk:"limits_enabled"`
+	MaxEventsPerMinute      types.Int64  `tfsdk:"max_events_per_minute"`
+	MaxBytesPerMinute       types.Int64  `tfsdk:"max_bytes_per_minute"`
+	MaxEventsPerDay         types.Int64  `tfsdk:"max_events_per_day"`
+	MaxBytesPerDay          types.Int64  `tfsdk:"max_bytes_per_day"`
+	MaxReplayBytesPerMinute types.Int64  `tfsdk:"max_replay_bytes_per_minute"`
+	MaxReplayBytesPerDay    types.Int64  `tfsdk:"max_replay_bytes_per_day"`
+	RawKey                  types.String `tfsdk:"raw_key"`
 }
 
 func (r *ingestKeyResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -62,10 +64,12 @@ func (r *ingestKeyResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 				Optional: true, Computed: true, Default: booldefault.StaticBool(false),
 				Description: "Whether the caps below are enforced. Defaults to false.",
 			},
-			"max_events_per_minute": cap("Events accepted per minute."),
-			"max_bytes_per_minute":  cap("Bytes accepted per minute."),
-			"max_events_per_day":    cap("Events accepted per UTC day."),
-			"max_bytes_per_day":     cap("Bytes accepted per UTC day."),
+			"max_events_per_minute":       cap("Events accepted per minute."),
+			"max_bytes_per_minute":        cap("Bytes accepted per minute."),
+			"max_events_per_day":          cap("Events accepted per UTC day."),
+			"max_bytes_per_day":           cap("Bytes accepted per UTC day."),
+			"max_replay_bytes_per_minute": cap("Browser session replay bytes accepted per minute. Counted inside max_bytes_per_minute, so it can only tighten that cap for replay."),
+			"max_replay_bytes_per_day":    cap("Browser session replay bytes accepted per UTC day. Counted inside max_bytes_per_day, so it can only tighten that cap for replay."),
 			"raw_key": schema.StringAttribute{
 				Computed: true, Sensitive: true,
 				Description:   "The secret to configure in OTLP exporters (Authorization / x-api-key). Only known for keys created by this resource.",
@@ -99,6 +103,7 @@ func (m ingestKeyModel) limits() client.IngestKeyLimits {
 		LimitsEnabled:      m.LimitsEnabled.ValueBool(),
 		MaxEventsPerMinute: int64Ptr(m.MaxEventsPerMinute), MaxBytesPerMinute: int64Ptr(m.MaxBytesPerMinute),
 		MaxEventsPerDay: int64Ptr(m.MaxEventsPerDay), MaxBytesPerDay: int64Ptr(m.MaxBytesPerDay),
+		MaxReplayBytesPerMinute: int64Ptr(m.MaxReplayBytesPerMinute), MaxReplayBytesPerDay: int64Ptr(m.MaxReplayBytesPerDay),
 	}
 }
 
@@ -121,13 +126,15 @@ func (m *ingestKeyModel) fromAPI(api client.IngestKey) {
 	m.LimitsEnabled = types.BoolValue(api.LimitsEnabled)
 	m.MaxEventsPerMinute, m.MaxBytesPerMinute = int64Value(api.MaxEventsPerMinute), int64Value(api.MaxBytesPerMinute)
 	m.MaxEventsPerDay, m.MaxBytesPerDay = int64Value(api.MaxEventsPerDay), int64Value(api.MaxBytesPerDay)
+	m.MaxReplayBytesPerMinute, m.MaxReplayBytesPerDay = int64Value(api.MaxReplayBytesPerMinute), int64Value(api.MaxReplayBytesPerDay)
 }
 
 const emptyGUID = "00000000-0000-0000-0000-000000000000"
 
 func (m ingestKeyModel) hasLimits() bool {
 	l := m.limits()
-	return l.LimitsEnabled || l.MaxEventsPerMinute != nil || l.MaxBytesPerMinute != nil || l.MaxEventsPerDay != nil || l.MaxBytesPerDay != nil
+	return l.LimitsEnabled || l.MaxEventsPerMinute != nil || l.MaxBytesPerMinute != nil || l.MaxEventsPerDay != nil || l.MaxBytesPerDay != nil ||
+		l.MaxReplayBytesPerMinute != nil || l.MaxReplayBytesPerDay != nil
 }
 
 func (r *ingestKeyResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -197,7 +204,8 @@ func (r *ingestKeyResource) Update(ctx context.Context, req resource.UpdateReque
 			!plan.ProjectID.Equal(state.ProjectID),
 			!plan.LimitsEnabled.Equal(state.LimitsEnabled) || !plan.MaxEventsPerMinute.Equal(state.MaxEventsPerMinute) ||
 				!plan.MaxBytesPerMinute.Equal(state.MaxBytesPerMinute) || !plan.MaxEventsPerDay.Equal(state.MaxEventsPerDay) ||
-				!plan.MaxBytesPerDay.Equal(state.MaxBytesPerDay),
+				!plan.MaxBytesPerDay.Equal(state.MaxBytesPerDay) ||
+				!plan.MaxReplayBytesPerMinute.Equal(state.MaxReplayBytesPerMinute) || !plan.MaxReplayBytesPerDay.Equal(state.MaxReplayBytesPerDay),
 		}[i]
 		if !changed {
 			continue
