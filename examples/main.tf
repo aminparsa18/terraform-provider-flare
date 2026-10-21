@@ -114,3 +114,13 @@ resource "flare_status_incident" "outage" {
   message    = "We are looking into elevated error rates."
   components = [flare_slo.api.id]
 }
+
+# A nightly job that pings https://<ingest>/v1/checkins/nightly-backup[/start|ok|fail]. Alert on it with a metric rule
+# on `checkin.up` (Last below 1), monitor = "nightly-backup".
+resource "flare_checkin_monitor" "nightly_backup" {
+  name            = "Nightly backup"
+  slug            = "nightly-backup"
+  cron_expression = "0 2 * * *"
+  time_zone       = "Europe/Berlin"
+  grace_seconds   = 600
+}
